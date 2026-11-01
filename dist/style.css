@@ -24,3 +24,5 @@
 .delete-button{border:0;background:transparent;color:#9e3e2a;min-height:44px;padding:10px 12px;cursor:pointer;font:inherit;font-size:12px}.project-card>.delete-button{display:block;margin-top:8px}.button.danger{background:#a83221;color:white}.button:disabled{opacity:.5;cursor:not-allowed}.saved-idea{flex-wrap:wrap}#focus-status{font-size:13px;color:var(--muted);line-height:1.5}
 
 #connection-status{margin:16px 24px;padding:16px;background:#fff4df;border:1px solid #e4cd9f;border-radius:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}#connection-status[hidden]{display:none}#connection-message{flex:1;min-width:200px}
+
+.session-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 18px;margin-bottom:24px;background:#f1edfb;border:1px solid #d8c6ee;border-radius:12px;font-size:14px}.session-banner span{overflow-wrap:anywhere;flex:1;min-width:150px}.project-card>.text-button{display:block;text-align:left;margin-top:8px}

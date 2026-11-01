@@ -29,7 +29,8 @@ class AppTests(unittest.TestCase):
         return self.store.snapshot()["state"]
 
     def focus(self, identifier="sample-2"):
-        return self.post("focus", id=identifier).json["result"]["id"]
+        current = self.store.snapshot()["focus"]
+        return self.post("focus", id=identifier, replaceSessionId=current["id"] if current else None).json["result"]["id"]
 
     def finish(self):
         identifier = self.focus()
@@ -75,7 +76,7 @@ class AppTests(unittest.TestCase):
     def test_timer_idle_pause_exact_boundary_and_single_claim(self):
         identifier = self.focus()
         self.now += 5000
-        self.assertEqual(self.post("complete", sessionId=identifier, next="Next").status_code, 400)
+        self.assertEqual(self.client.get("/api/focus/" + identifier).json["result"]["remaining"], 900)
         self.post("start", sessionId=identifier)
         self.now += 300.5
         self.post("pause", sessionId=identifier)
@@ -83,7 +84,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/focus/" + identifier).json["result"]["remaining"], 600)
         self.post("start", sessionId=identifier)
         self.now += 599.4
-        self.assertEqual(self.post("complete", sessionId=identifier, next="Next").status_code, 400)
+        self.assertFalse(self.client.get("/api/focus/" + identifier).json["result"]["finished"])
         self.now += .2
         response = self.post("complete", sessionId=identifier, next="Next")
         self.assertEqual(response.status_code, 200)
@@ -93,13 +94,15 @@ class AppTests(unittest.TestCase):
     def test_client_cannot_supply_elapsed_time_or_xp(self):
         identifier = self.focus()
         response = self.post("complete", sessionId=identifier, next="", remaining=0, finished=True, xp=500)
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(len(self.state()["wins"]), 0)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["summary"]["xp"], 25)
+        self.assertFalse(self.state()["projects"][1]["done"])
 
     def test_reset_cancel_and_switch_invalidate(self):
         identifier = self.finish()
         self.post("reset", sessionId=identifier)
-        self.assertEqual(self.post("complete", sessionId=identifier, next="").status_code, 400)
+        self.assertEqual(self.store.snapshot()["focus"]["remaining"], 900)
+        self.assertFalse(self.store.snapshot()["focus"]["running"])
         identifier = self.finish()
         self.post("cancel", sessionId=identifier)
         self.assertEqual(self.post("complete", sessionId=identifier, next="").status_code, 400)
@@ -119,6 +122,9 @@ class AppTests(unittest.TestCase):
     def test_completion_edit_reopen_and_delete_keep_wins(self):
         identifier = self.finish()
         self.post("complete", sessionId=identifier, next="")
+        project = self.state()["projects"][1]
+        self.assertFalse(project["done"])
+        self.assertEqual(self.post("finish-project", id=project["id"]).status_code, 200)
         project = self.state()["projects"][1]
         self.assertTrue(project["done"])
         self.post("save", id=project["id"], project=project)
@@ -184,9 +190,6 @@ class AppTests(unittest.TestCase):
         project.update(name="完整流程", next="完成第一个步骤")
         identifier = self.post("save", project=project).json["result"]["id"]
         session = self.focus(identifier)
-        self.assertEqual(self.post("complete", sessionId=session, next="").status_code, 400)
-        self.post("start", sessionId=session)
-        self.now += 900
         self.assertEqual(self.post("complete", sessionId=session, next="").status_code, 200)
         backup = self.client.get("/api/backup").json
         self.post("delete", kind="quest", id=identifier)
@@ -268,6 +271,82 @@ class AppTests(unittest.TestCase):
         response = self.post("save", project=before["projects"][0], ideaId=before["ideas"][0]["id"])
         self.assertEqual(response.status_code, 503)
         self.assertEqual(self.state(), before)
+
+    def test_step_can_finish_without_timer_or_before_timer_ends(self):
+        for seconds in (None, 120):
+            identifier = self.focus()
+            if seconds is not None:
+                self.post("start", sessionId=identifier)
+                self.now += seconds
+            response = self.post("complete", sessionId=identifier, next="Another step")
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(self.state()["projects"][1]["done"])
+            self.assertIsNone(response.json["focus"])
+            self.assertEqual(self.post("complete", sessionId=identifier, next="Duplicate").status_code, 400)
+        self.assertEqual(self.store.snapshot()["summary"]["xp"], 50)
+
+    def test_refresh_restores_idle_running_paused_and_elapsed_session(self):
+        identifier = self.focus()
+        def refreshed():
+            return create_app(self.path, lambda: self.now).test_client().get("/api/workspace").json["focus"]
+        self.assertEqual(refreshed()["id"], identifier)
+        self.assertFalse(refreshed()["running"])
+        self.post("start", sessionId=identifier)
+        self.now += 120
+        self.assertEqual(refreshed()["remaining"], 780)
+        self.assertTrue(refreshed()["running"])
+        self.assertEqual(self.focus(), identifier)
+        self.assertEqual(refreshed()["remaining"], 780)
+        self.post("pause", sessionId=identifier)
+        self.now += 1000
+        self.assertEqual(refreshed()["remaining"], 780)
+        self.assertFalse(refreshed()["running"])
+        self.post("start", sessionId=identifier)
+        self.now += 800
+        self.assertTrue(refreshed()["finished"])
+        self.assertEqual(len(self.state()["wins"]), 0)
+
+    def test_empty_next_step_stays_active_and_cannot_be_completed_twice(self):
+        self.post("complete", sessionId=self.focus(), next="   ")
+        project = self.state()["projects"][1]
+        self.assertFalse(project["done"])
+        self.assertEqual(project["next"], "")
+        self.assertEqual(self.post("focus", id=project["id"]).status_code, 400)
+        self.assertNotEqual(self.store.snapshot()["summary"]["recommendations"]["15"], project["id"])
+        self.assertEqual(self.post("save", id=project["id"], project=project).status_code, 200)
+        project["next"] = "Continue later"
+        self.post("save", id=project["id"], project=project)
+        self.assertEqual(self.post("focus", id=project["id"]).status_code, 200)
+
+    def test_finishing_project_ends_session_without_extra_xp(self):
+        identifier = self.focus()
+        self.post("start", sessionId=identifier)
+        response = self.post("finish-project", id="sample-2")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(self.state()["projects"][1]["done"])
+        self.assertEqual(response.json["summary"]["xp"], 0)
+        self.assertIsNone(response.json["focus"])
+        self.assertEqual(self.post("complete", sessionId=identifier, next="").status_code, 400)
+        self.assertEqual(self.post("finish-project", id="sample-2").status_code, 400)
+
+    def test_switch_requires_confirmation_for_current_session(self):
+        identifier = self.focus()
+        self.post("start", sessionId=identifier)
+        self.now += 120
+        self.assertEqual(self.post("focus", id="sample-1").status_code, 400)
+        self.assertEqual(self.store.snapshot()["focus"]["remaining"], 780)
+        response = self.post("focus", id="sample-1", replaceSessionId=identifier)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.post("focus", id="sample-2", replaceSessionId=identifier).status_code, 400)
+
+    def test_failed_completion_keeps_session_and_step(self):
+        identifier = self.focus()
+        before = self.state()
+        with self.store.connection() as db:
+            db.execute("CREATE TRIGGER fail_completion BEFORE UPDATE ON workspace BEGIN SELECT RAISE(ABORT, 'test failure'); END")
+        self.assertEqual(self.post("complete", sessionId=identifier, next="").status_code, 503)
+        self.assertEqual(self.state(), before)
+        self.assertEqual(self.store.snapshot()["focus"]["id"], identifier)
 
 
 if __name__ == "__main__":

@@ -46,7 +46,7 @@ def validate(value):
         result["projects"].append(dict(
             id=text(p.get("id"), 100, True), name=text(p.get("name"), 70, True),
             category=p["category"], minutes=p["minutes"], done=p["done"], sample=bool(p.get("sample", False)),
-            context=text(p.get("context"), 500), next=text(p.get("next"), 140, not p["done"]),
+            context=text(p.get("context"), 500), next=text(p.get("next"), 140),
             blocker=text(p.get("blocker"), 150), goal=number(p.get("goal"), 100000000),
             income=number(p.get("income"), 100000000), updatedAt=number(p.get("updatedAt", 0), 8640000000000000)))
     for w in value["wins"]:
@@ -73,7 +73,7 @@ def initial_workspace():
 
 
 def recommend(projects, budget):
-    eligible = [p for p in projects if not p["done"] and p["minutes"] <= budget]
+    eligible = [p for p in projects if not p["done"] and p["next"].strip() and p["minutes"] <= budget]
     return min(eligible, key=lambda p: (bool(p["blocker"]), p["sample"], -p["updatedAt"], p["minutes"]), default=None)
 
 
@@ -118,8 +118,14 @@ class Workspace:
 
     def snapshot(self):
         with self.connection() as db:
+            db.execute("BEGIN")
             state = self.read(db)
-        return {"state": state, "summary": presentation(state, self.clock())}
+            focus = self.current_focus(db)
+        return {"state": state, "summary": presentation(state, self.clock()), "focus": focus}
+
+    def current_focus(self, db):
+        row = db.execute("SELECT data FROM focus WHERE id=1").fetchone()
+        return self.session_view(json.loads(row[0])) if row else None
 
     def session(self, db, identifier):
         row = db.execute("SELECT data FROM focus WHERE id=1").fetchone()
@@ -153,6 +159,7 @@ class Workspace:
                 p = data.get("project")
                 if not isinstance(p, dict):
                     raise RuleError("Invalid quest.")
+                text(p.get("next"), 140, not old or bool(data.get("reopen")))
                 p = {**p, "id": identifier or str(uuid.uuid4()), "done": bool(old and old["done"] and not data.get("reopen")), "sample": False, "updatedAt": now * 1000}
                 state["projects"] = [p if q["id"] == identifier else q for q in state["projects"]] if old else state["projects"] + [p]
                 idea_id = data.get("ideaId")
@@ -162,6 +169,13 @@ class Workspace:
                 if old:
                     self.invalidate(db, identifier)
                 result = {"id": p["id"], "savedOnDevice": True}
+            elif action == "finish-project":
+                quest = next((p for p in state["projects"] if p["id"] == data.get("id") and not p["done"]), None)
+                if not quest:
+                    raise RuleError("Choose an active project.")
+                quest.update(done=True, sample=False, updatedAt=now * 1000)
+                self.invalidate(db, quest["id"])
+                result = {"savedOnDevice": True}
             elif action == "capture":
                 name = text(data.get("name"), 70, True).strip()
                 state["ideas"].append({"id": str(uuid.uuid4()), "name": name, "at": now * 1000})
@@ -191,7 +205,7 @@ class Workspace:
                     budget = data.get("budget")
                     if budget not in (15, 30, 60):
                         raise RuleError("Choose 15, 30 or 60 minutes.")
-                    pool = [p for p in state["projects"] if not p["done"] and p["minutes"] <= budget]
+                    pool = [p for p in state["projects"] if not p["done"] and p["next"].strip() and p["minutes"] <= budget]
                     if not pool:
                         raise RuleError("No quest fits yet. Try more time or add a shorter step.")
                     quest = random.choice([p for p in pool if not p["blocker"]] or pool)
@@ -199,23 +213,29 @@ class Workspace:
                     quest = next((p for p in state["projects"] if p["id"] == data.get("id") and not p["done"]), None)
                 if not quest:
                     raise RuleError("Choose an active quest.")
-                session = {"id": str(uuid.uuid4()), "projectId": quest["id"], "remaining": quest["minutes"] * 60, "duration": quest["minutes"] * 60, "startedAt": None}
-                db.execute("INSERT OR REPLACE INTO focus VALUES (1, ?)", (json.dumps(session),))
-                result = self.session_view(session)
+                if not quest["next"].strip():
+                    raise RuleError("Add a next step before starting this project.")
+                current = self.current_focus(db)
+                if current and current["projectId"] == quest["id"]:
+                    result = current
+                else:
+                    if current and data.get("replaceSessionId") != current["id"]:
+                        raise RuleError("Another step is open. Resume it or confirm switching to a new step.")
+                    session = {"id": str(uuid.uuid4()), "projectId": quest["id"], "remaining": quest["minutes"] * 60, "duration": quest["minutes"] * 60, "startedAt": None}
+                    db.execute("INSERT OR REPLACE INTO focus VALUES (1, ?)", (json.dumps(session),))
+                    result = self.session_view(session)
             elif action in ("start", "pause", "reset", "cancel", "complete"):
                 session = self.session(db, data.get("sessionId"))
                 status = self.session_view(session)
                 if action == "cancel":
                     db.execute("DELETE FROM focus WHERE id=1")
                 elif action == "complete":
-                    if not status["finished"]:
-                        raise RuleError("Finish the focus timer before claiming XP.")
                     quest = next((p for p in state["projects"] if p["id"] == session["projectId"] and not p["done"]), None)
                     if not quest:
                         raise RuleError("This quest is no longer active.")
                     next_step = text(data.get("next"), 140).strip()
                     state["wins"].append({"action": quest["next"], "project": quest["name"], "at": now * 1000})
-                    quest.update(context="Finished: " + quest["next"], next=next_step, done=not next_step, blocker="", sample=False, updatedAt=now * 1000)
+                    quest.update(context="Finished: " + quest["next"], next=next_step, done=False, blocker="", sample=False, updatedAt=now * 1000)
                     db.execute("DELETE FROM focus WHERE id=1")
                     result = {"xpAwarded": 25, "savedOnDevice": True}
                 else:
@@ -234,7 +254,7 @@ class Workspace:
                 raise RuleError("Unknown operation.")
             state = validate(state)
             db.execute("UPDATE workspace SET data=? WHERE id=1", (json.dumps(state),))
-            return {"state": state, "summary": presentation(state, now), "result": result}
+            return {"state": state, "summary": presentation(state, now), "focus": self.current_focus(db), "result": result}
 
     def invalidate(self, db, project_id):
         row = db.execute("SELECT data FROM focus WHERE id=1").fetchone()
