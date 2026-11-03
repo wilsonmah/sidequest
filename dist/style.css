@@ -26,3 +26,16 @@
 #connection-status{margin:16px 24px;padding:16px;background:#fff4df;border:1px solid #e4cd9f;border-radius:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}#connection-status[hidden]{display:none}#connection-message{flex:1;min-width:200px}
 
 .session-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 18px;margin-bottom:24px;background:#f1edfb;border:1px solid #d8c6ee;border-radius:12px;font-size:14px}.session-banner span{overflow-wrap:anywhere;flex:1;min-width:150px}.project-card>.text-button{display:block;text-align:left;margin-top:8px}
+
+/* Plans, billing and the Pro report. */
+.pro-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 10px}.pro-actions .button{justify-content:center}.pro-actions .button span{font-size:12px;opacity:.85}
+.pro-reason{background:#fff4df;border:1px solid #e4cd9f;border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.5}
+#account-links button,#mode-label{font-size:inherit}#account-error{color:#9f3527;font-size:14px;min-height:20px}
+#account-form label{display:block;margin:14px 0}#account-form input{display:block;width:100%;margin-top:6px}
+.insights{margin-top:28px;padding:24px 28px;background:#fff;border:1px solid var(--line);border-radius:13px}
+.week-bars{list-style:none;margin:18px 0 0;padding:0;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px;align-items:end;height:150px}
+.week-bars li{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px}.week-bars b{display:block;width:100%;max-width:34px;height:var(--h,4%);min-height:4px;background:#bba4ed;border-radius:6px 6px 3px 3px}.week-bars small{font-size:11px;color:var(--muted)}
+.income-report{margin-top:22px;border-top:1px solid var(--line);padding-top:16px}.income-row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 0;border-bottom:1px solid #f0f1f4}.income-row span{overflow-wrap:anywhere}.income-row small{grid-column:1/-1;color:var(--muted);font-size:13px}
+.insights-locked{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:14px;padding:18px;background:#f1edfb;border-radius:10px}.insights-locked p{margin:0;flex:1;min-width:200px}.insights-empty{color:var(--muted);font-size:14px}
+@media(max-width:650px){.insights{padding:20px 16px}.week-bars{gap:4px;height:120px}.week-bars small{font-size:9px}.pro-actions{grid-template-columns:1fr}}
+.profile>div:nth-child(2){min-width:0;flex:1}#profile-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

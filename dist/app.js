@@ -33,18 +33,23 @@ const SidequestProgress = (() => {
 
 'use strict';
 const $=id=>document.getElementById(id);
-let state={projects:[],wins:[],ideas:[]},summary=null,view='today',filter='all',token='',ready=false;
+let state={projects:[],wins:[],ideas:[]},summary=null,view='today',filter='all',token='',ready=false,account={mode:'local'};
+const hosted=()=>account.mode==='hosted';
 function connectionFailure(message){$('connection-status').hidden=false;$('connection-message').textContent=message;$('retry-connection').hidden=false;}
 async function api(action,data){
  const revision=data===undefined?focusRevision:++focusRevision;
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
  let response,payload;
  try{response=await fetch('/api/'+action,{signal:controller.signal,method:data===undefined?'GET':'POST',headers:data===undefined?{}:{'Content-Type':'application/json','X-Sidequest-Token':token},body:data===undefined?undefined:JSON.stringify(data)});payload=await response.json()}
- catch{const message='Cannot reach SideQuest. Run start.cmd, then retry the connection. If you were saving, reconnect to check the result.';connectionFailure(message);throw Error(message)}
+ catch{const message=hosted()?'Cannot reach SideQuest. Check your connection, then retry. If you were saving, reconnect to check the result.':'Cannot reach SideQuest. Run start.cmd, then retry the connection. If you were saving, reconnect to check the result.';connectionFailure(message);throw Error(message)}
  finally{clearTimeout(timeout)}
- if(!response.ok){const error=Error(payload.error||'Could not save. Please try again.');error.status=response.status;if(response.status===403)connectionFailure('The local service restarted. Retry the connection before saving again.');throw error}
+ if(!response.ok){const error=Error(payload.error||'Could not save. Please try again.');error.status=response.status;
+  if(response.status===401&&payload.login){location.href='/login';throw error}
+  if(response.status===402&&payload.upgrade)openPro(payload.error);
+  if(response.status===403)connectionFailure(hosted()?'Your session changed. Retry the connection before saving again.':'The local service restarted. Retry the connection before saving again.');throw error}
  if(action==='workspace'&&revision!==focusRevision)return payload;
  if(payload.token)token=payload.token;
+ if(payload.account){account=payload.account;renderAccount()}
  if(payload.state){state=payload.state;summary=payload.summary;if(Object.hasOwn(payload,'focus'))syncFocus(payload.focus);render()}
  return payload.result??payload;
 }
@@ -57,6 +62,7 @@ function render(){
  if(!summary)return;
  renderToday();
  renderMomentum();
+ renderInsights();
  document.querySelectorAll('[data-view]').forEach(b=>{const selected=b.dataset.view===(view==='completed'?'active':view);b.setAttribute('aria-pressed',String(selected));b.classList.toggle('active',selected)});
  document.querySelectorAll('[data-filter]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.filter===filter)));
  const active=state.projects.filter(p=>!p.done),xp=summary.xp;
@@ -104,7 +110,7 @@ document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',(
 document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.go)));
 document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(n=>n.classList.toggle('selected',n===b));render()}));
 $('new-project').onclick=$('capture-idea').onclick=()=>{ $('capture-form').reset();$('capture-error').textContent='';$('capture-dialog').showModal();$('idea-name').focus()};
-$('create-quest').onclick=()=>openProject();$('open-pro').onclick=$('pro-footer').onclick=()=>$('pro-dialog').showModal();
+$('create-quest').onclick=()=>openProject();$('open-pro').onclick=$('pro-footer').onclick=()=>openPro();
 $('project-category').onchange=()=>$('money-fields').hidden=$('project-category').value!=='money';
 $('project-form').onsubmit=async e=>{e.preventDefault();const input={name:$('project-name').value.trim(),category:$('project-category').value,minutes:Number($('project-minutes').value),context:$('project-context').value.trim(),next:$('project-next').value.trim(),blocker:$('project-blocker').value.trim(),goal:Number($('project-goal').value),income:Number($('project-income').value)};const submit=e.submitter||$('project-form').querySelector('[type=submit]');if(submit.disabled)return;submit.disabled=true;try{const r=await saveProject(input,$('project-id').value,reopeningProject,promotingIdea);$('project-dialog').close();if(r.savedOnDevice)toast('Quest saved. Future you says thanks.')}catch(error){$('project-error').textContent=error.message}finally{submit.disabled=false}};
 let focus=null,timerInterval=null,polling=false,timerBusy=false,focusDisconnected=false,focusRevision=0;
@@ -278,11 +284,59 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('close',receiv
 let connecting=false;
 async function initialize(){
  if(connecting||timerBusy)return;connecting=true;$('retry-connection').disabled=true;
- try{await api('workspace');ready=true;document.querySelector('main').inert=false;$('connection-status').hidden=true;receiveQuestLink()}
+ try{await api('workspace');ready=true;document.querySelector('main').inert=false;$('connection-status').hidden=true;receiveQuestLink();checkoutReturn()}
  catch(error){connectionFailure(error.message)}
  finally{connecting=false;$('retry-connection').disabled=false}
 }
 $('retry-connection').onclick=initialize;
+
+// Account, plan and billing. In the local edition every feature is included and these stay hidden.
+function renderAccount(){
+ const on=hosted(),pro=account.plan==='pro';
+ $('profile-avatar').textContent=on?account.email[0].toUpperCase():'Y';
+ $('profile-name').textContent=on?account.email:'Your workspace';
+ $('profile-plan').textContent=on?(pro?'Pro plan':`Free plan · ${account.freeLimit} active quests`):'Saved on this computer';
+ $('pro-card-copy').textContent=on&&pro?'You’re on Pro. Manage billing':'Unlimited quests and reports';
+ $('mode-label').textContent=on?'Saved to your account':'Local Python app';
+ $('account-links').hidden=!on;
+ $('save-note').textContent=on?'Your quests are saved to your account. Download a backup any time.':'Your quests are saved on this computer. Download a backup to keep a copy.';
+}
+function openPro(reason){
+ const on=hosted(),pro=account.plan==='pro';
+ $('pro-reason').hidden=!reason;$('pro-reason').textContent=reason||'';
+ $('pro-actions').hidden=!on||pro||!account.billing;
+ $('manage-billing').hidden=!on||!account.canManage;
+ $('pro-status').textContent=!on?'Pro is part of the hosted edition. This local edition already includes every feature.':pro?(account.status==='past_due'?'Your last payment didn’t go through. Update your card in Manage billing to keep Pro.':'You’re on Pro. Thank you for supporting SideQuest.'):account.billing?'Secure checkout by Stripe. Cancel any time; your projects always stay.':'Upgrades open soon.';
+ if(!$('pro-dialog').open)$('pro-dialog').showModal();
+}
+function billingRedirect(button,path,data){return perform(button,async()=>{const result=await api(path,data);location.href=result.url})}
+$('upgrade-month').onclick=()=>billingRedirect($('upgrade-month'),'billing/checkout',{interval:'month'});
+$('upgrade-year').onclick=()=>billingRedirect($('upgrade-year'),'billing/checkout',{interval:'year'});
+$('manage-billing').onclick=()=>billingRedirect($('manage-billing'),'billing/portal',{});
+$('logout').onclick=()=>perform($('logout'),async()=>{await api('auth/logout',{});location.href='/'});
+$('delete-account').onclick=()=>{$('account-password').value='';$('account-error').textContent='';$('account-dialog').showModal()};
+$('account-form').onsubmit=async e=>{e.preventDefault();const button=e.submitter||$('account-form').querySelector('[type=submit]');
+ await perform(button,async()=>{try{await api('account/delete',{password:$('account-password').value});location.href='/'}catch(error){$('account-error').textContent=error.message}})};
+function checkoutReturn(){
+ const params=new URLSearchParams(location.search||'');
+ if(!params.has('upgraded')&&!params.has('upgrade'))return;
+ if(typeof history!=='undefined')history.replaceState(null,'',location.pathname);
+ if(params.has('upgrade')){if(account.plan!=='pro')openPro();return}
+ // Stripe's webhook can land a moment after the redirect; check again shortly.
+ if(account.plan==='pro')toast('Welcome to Pro. Every quest you want, no cap.');
+ else{toast('Payment received. Pro will switch on in a moment.');setTimeout(()=>api('workspace').then(()=>account.plan==='pro'&&toast('Pro is on. Thank you!')).catch(()=>{}),4000)}
+}
+function renderInsights(){
+ $('insights-panel').hidden=view!=='progress';
+ const data=summary.insights;
+ if(!data){$('insights-body').innerHTML='<div class="insights-locked"><p>See twelve weeks of finished steps and which side hustles are earning.</p><button class="button dark" id="insights-upgrade">Unlock with Pro ↗</button></div>';return}
+ const max=Math.max(1,...data.weeks.map(w=>w.count));
+ $('insights-body').innerHTML=`<ol class="week-bars" aria-label="Steps finished per week, last 12 weeks">${data.weeks.map(w=>{const d=new Date(w.start+'T12:00:00');return `<li aria-label="Week of ${escapeHTML(d.toLocaleDateString(undefined,{month:'short',day:'numeric'}))}: ${w.count} ${w.count===1?'step':'steps'}"><b data-count="${w.count}"></b><small>${escapeHTML(d.toLocaleDateString(undefined,{month:'numeric',day:'numeric'}))}</small></li>`}).join('')}</ol>`+
+  (data.income.length?`<div class="income-report"><span class="eyebrow">TOP EARNING PROJECTS</span>${data.income.map(p=>`<div class="income-row"><span>${escapeHTML(p.name)}</span><strong>${money(p.income)}</strong><small>${p.goal?Math.round(p.income/p.goal*100)+'% of '+money(p.goal)+' goal':'No goal set'}</small></div>`).join('')}</div>`:'<p class="insights-empty">Log earnings on an income quest to see it here.</p>');
+ // Heights are set through the CSSOM so the strict Content-Security-Policy needs no inline styles.
+ document.querySelectorAll('.week-bars b').forEach(bar=>bar.style.setProperty('--h',Math.max(4,Number(bar.dataset.count)/max*100)+'%'));
+}
+$('insights-body').onclick=e=>{if(e.target.closest('#insights-upgrade'))openPro()};
 initialize();
 if(document.modelContext?.registerTool){
  const lifecycle=new AbortController();window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});
