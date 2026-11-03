@@ -1,0 +1,32 @@
+# Render Blueprint: one web service with a persistent disk for SQLite. See DEPLOY.md.
+services:
+  - type: web
+    name: sidequest
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: sidequest-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: BASE_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_MONTHLY
+        sync: false
+      - key: STRIPE_PRICE_YEARLY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false

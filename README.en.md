@@ -4,6 +4,11 @@ English | [中文](README.md)
 
 SideQuest is a local app for making steady progress on personal projects. Capture an idea, define a small next step, and pick up where you left off. The interface is in English and data stays in a local SQLite database.
 
+## Two editions
+
+- **Local** (default): one workspace on this computer, no accounts, every feature included. Run `start.cmd`.
+- **Hosted** (`SIDEQUEST_MODE=hosted`): the online product, with a landing page, accounts, a free plan capped at 3 active projects, and Pro at $9/month or $72/year through Stripe. See [DEPLOY.md](DEPLOY.md) to put it online and [REVIEW.md](REVIEW.md) for the commercial review and launch plan.
+
 ## Features
 
 - Capture ideas and turn them into projects with context, a next action, blockers, and optional income goals.
@@ -36,7 +41,7 @@ This is a single-user local application listening only on `127.0.0.1`. There are
 
 Use the download button at the top of the page to export a backup and **Restore backup** in the footer to import one. Import merges projects and ideas by ID, deduplicates history, and preserves edited local projects; an unedited sample project may be replaced by an imported project with the same ID. Older backups are supported. Backups contain projects, ideas, and progress, but not the active focus session. Stop the app before copying the SQLite file directly.
 
-A shared step link contains only the project name, step, duration, and category; the recipient can read and edit them before saving a separate copy. It does not grant remote access, and the local address is only usable on this computer. The Pro screen is a concept; there is no subscription or checkout.
+A shared step link contains only the project name, step, duration, and category; the recipient can read and edit them before saving a separate copy. It does not grant remote access, and the local address is only usable on this computer. In the local edition the Pro dialog only explains the hosted plan; there is no checkout.
 
 ## Sessions and consistency
 
@@ -53,9 +58,10 @@ node --test tests/frontend.cjs
 
 Python tests use isolated temporary databases and a controlled clock. Node.js is only needed for the optional front-end regression tests.
 
-- `app.py`: local HTTP service and API.
-- `sidequest.py`: projects, timers, progress, backups, and SQLite transactions.
-- `dist/`: HTML, CSS, and vanilla JavaScript interface.
+- `app.py`: HTTP service and API for both editions.
+- `sidequest.py`: projects, timers, progress, backups, plan limits, and SQLite transactions.
+- `accounts.py`, `billing.py`: hosted accounts and Stripe billing.
+- `dist/`: app, landing, sign-in and legal pages (HTML, CSS, and vanilla JavaScript).
 - `tests/`: back-end and front-end regression tests.
 
-The current code is the local Python edition. `dist/` depends on its Python API and cannot be deployed alone as a static site. An older hosted edition may differ; deploying this version requires suitable Python hosting and production server configuration.
+`dist/` depends on the Python API and cannot be deployed alone as a static site. Deploy the hosted edition with the included `Dockerfile` and `render.yaml`; see [DEPLOY.md](DEPLOY.md).
