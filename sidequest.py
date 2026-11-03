@@ -13,6 +13,10 @@ class RuleError(ValueError):
     pass
 
 
+class UpgradeRequired(RuleError):
+    """A free-plan limit was reached; the client offers Pro instead of a plain error."""
+
+
 MILESTONES = [
     {"at": 1, "name": "First spark", "description": "Finish your first step"},
     {"at": 5, "name": "Finding a rhythm", "description": "Finish 5 steps"},
@@ -77,7 +81,26 @@ def recommend(projects, budget):
     return min(eligible, key=lambda p: (bool(p["blocker"]), p["sample"], -p["updatedAt"], p["minutes"]), default=None)
 
 
-def presentation(workspace, now):
+def active_quests(workspace):
+    return sum(not p["done"] and not p["sample"] for p in workspace["projects"])
+
+
+def insights(workspace, now):
+    """Pro report: twelve weeks of finished steps and income by project."""
+    today = datetime.fromtimestamp(now).date()
+    start = today - timedelta(days=today.weekday() + 7 * 11)
+    weeks = [{"start": (start + timedelta(weeks=i)).isoformat(), "count": 0} for i in range(12)]
+    for win in workspace["wins"]:
+        if win["at"] > now * 1000:
+            continue
+        index = (datetime.fromtimestamp(win["at"] / 1000).date() - start).days // 7
+        if 0 <= index < 12:
+            weeks[index]["count"] += 1
+    earners = sorted((p for p in workspace["projects"] if p["income"] > 0), key=lambda p: -p["income"])[:5]
+    return {"weeks": weeks, "income": [{"name": p["name"], "income": p["income"], "goal": p["goal"]} for p in earners]}
+
+
+def presentation(workspace, now, report=False):
     today = datetime.fromtimestamp(now).date()
     days = [{"date": (today - timedelta(days=6-i)).isoformat(), "count": 0} for i in range(7)]
     for win in workspace["wins"]:
@@ -93,16 +116,29 @@ def presentation(workspace, now):
             "income": sum(p["income"] for p in workspace["projects"]),
             "recommendations": {str(b): (p["id"] if (p := recommend(workspace["projects"], b)) else None) for b in (15, 30, 60)},
             "progress": {"days": days, "steps": sum(d["count"] for d in days), "activeDays": sum(d["count"] > 0 for d in days),
-                         "milestones": MILESTONES, "next": next((m for m in MILESTONES if m["at"] > total), None)}}
+                         "milestones": MILESTONES, "next": next((m for m in MILESTONES if m["at"] > total), None)},
+            "insights": insights(workspace, now) if report else None}
 
 
 class Workspace:
+    """One JSON workspace and at most one focus session per user, stored in SQLite."""
+
     def __init__(self, path, clock=time.time):
         self.path, self.clock = str(path), clock
         with self.connection() as db:
-            db.execute("CREATE TABLE IF NOT EXISTS workspace (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL)")
-            db.execute("CREATE TABLE IF NOT EXISTS focus (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL)")
-            db.execute("INSERT OR IGNORE INTO workspace VALUES (1, ?)", (json.dumps(initial_workspace()),))
+            db.execute("CREATE TABLE IF NOT EXISTS workspaces (user_id TEXT PRIMARY KEY, data TEXT NOT NULL)")
+            db.execute("CREATE TABLE IF NOT EXISTS focus_sessions (user_id TEXT PRIMARY KEY, data TEXT NOT NULL)")
+            # Databases from the single-user edition keep their data as the local user.
+            tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if "workspace" in tables:
+                db.execute("INSERT OR IGNORE INTO workspaces SELECT 'local', data FROM workspace WHERE id=1")
+                db.execute("DROP TABLE workspace")
+            if "focus" in tables:
+                db.execute("INSERT OR IGNORE INTO focus_sessions SELECT 'local', data FROM focus WHERE id=1")
+                db.execute("DROP TABLE focus")
+        db = sqlite3.connect(self.path)
+        db.execute("PRAGMA journal_mode=WAL")
+        db.close()
 
     @contextmanager
     def connection(self):
@@ -113,23 +149,37 @@ class Workspace:
         finally:
             db.close()
 
-    def read(self, db):
-        return json.loads(db.execute("SELECT data FROM workspace WHERE id=1").fetchone()[0])
+    def read(self, db, user):
+        row = db.execute("SELECT data FROM workspaces WHERE user_id=?", (user,)).fetchone()
+        if row:
+            return json.loads(row[0])
+        state = initial_workspace()
+        db.execute("INSERT INTO workspaces VALUES (?, ?)", (user, json.dumps(state)))
+        return state
 
-    def snapshot(self):
+    def snapshot(self, user="local", report=False):
         with self.connection() as db:
-            db.execute("BEGIN")
-            state = self.read(db)
-            focus = self.current_focus(db)
-        return {"state": state, "summary": presentation(state, self.clock()), "focus": focus}
+            db.execute("BEGIN IMMEDIATE")
+            state = self.read(db, user)
+            focus = self.current_focus(db, user)
+        return {"state": state, "summary": presentation(state, self.clock(), report), "focus": focus}
 
-    def current_focus(self, db):
-        row = db.execute("SELECT data FROM focus WHERE id=1").fetchone()
-        return self.session_view(json.loads(row[0])) if row else None
+    def stored_session(self, db, user):
+        row = db.execute("SELECT data FROM focus_sessions WHERE user_id=?", (user,)).fetchone()
+        return json.loads(row[0]) if row else None
 
-    def session(self, db, identifier):
-        row = db.execute("SELECT data FROM focus WHERE id=1").fetchone()
-        session = json.loads(row[0]) if row else None
+    def save_session(self, db, user, session):
+        db.execute("INSERT OR REPLACE INTO focus_sessions VALUES (?, ?)", (user, json.dumps(session)))
+
+    def end_session(self, db, user):
+        db.execute("DELETE FROM focus_sessions WHERE user_id=?", (user,))
+
+    def current_focus(self, db, user):
+        session = self.stored_session(db, user)
+        return self.session_view(session) if session else None
+
+    def session(self, db, user, identifier):
+        session = self.stored_session(db, user)
         if not session or session["id"] != identifier:
             raise RuleError("This focus session has ended. Open the quest again.")
         return session
@@ -139,16 +189,22 @@ class Workspace:
         return {"id": session["id"], "projectId": session["projectId"], "remaining": math.ceil(remaining),
                 "running": session["startedAt"] is not None and remaining > 0, "finished": remaining <= 0}
 
-    def focus_status(self, identifier):
+    def focus_status(self, identifier, user="local"):
         with self.connection() as db:
-            return self.session_view(self.session(db, identifier))
+            return self.session_view(self.session(db, user, identifier))
 
-    def act(self, action, data):
+    def delete_user(self, user):
+        with self.connection() as db:
+            db.execute("DELETE FROM workspaces WHERE user_id=?", (user,))
+            self.end_session(db, user)
+
+    def act(self, action, data, user="local", quest_limit=None, report=False):
         if not isinstance(data, dict):
             raise RuleError("Expected a JSON object.")
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            state = self.read(db)
+            state = self.read(db, user)
+            active_before = active_quests(state)
             result = {}
             now = self.clock()
             if action == "save":
@@ -167,14 +223,14 @@ class Workspace:
                     raise RuleError("This idea has already been moved or deleted. Reload your workspace.")
                 state["ideas"] = [i for i in state["ideas"] if i["id"] != idea_id]
                 if old:
-                    self.invalidate(db, identifier)
+                    self.invalidate(db, user, identifier)
                 result = {"id": p["id"], "savedOnDevice": True}
             elif action == "finish-project":
                 quest = next((p for p in state["projects"] if p["id"] == data.get("id") and not p["done"]), None)
                 if not quest:
                     raise RuleError("Choose an active project.")
                 quest.update(done=True, sample=False, updatedAt=now * 1000)
-                self.invalidate(db, quest["id"])
+                self.invalidate(db, user, quest["id"])
                 result = {"savedOnDevice": True}
             elif action == "capture":
                 name = text(data.get("name"), 70, True).strip()
@@ -185,7 +241,7 @@ class Workspace:
                 key = "projects" if data["kind"] == "quest" else "ideas"
                 state[key] = [p for p in state[key] if p["id"] != data.get("id")]
                 if key == "projects":
-                    self.invalidate(db, data.get("id"))
+                    self.invalidate(db, user, data.get("id"))
             elif action == "import":
                 incoming = validate(data.get("workspace"))
                 for key in ("projects", "ideas"):
@@ -194,7 +250,7 @@ class Workspace:
                     if key == "projects":
                         for p in state[key]:
                             if p["sample"] and p["id"] in imported and imported[p["id"]] != p:
-                                self.invalidate(db, p["id"])
+                                self.invalidate(db, user, p["id"])
                         state[key] = [imported.get(p["id"], p) if p["sample"] else p for p in state[key]]
                     identifiers = {p["id"] for p in state[key]}
                     state[key].extend(p for p in incoming[key] if p["id"] not in identifiers)
@@ -215,20 +271,20 @@ class Workspace:
                     raise RuleError("Choose an active quest.")
                 if not quest["next"].strip():
                     raise RuleError("Add a next step before starting this project.")
-                current = self.current_focus(db)
+                current = self.current_focus(db, user)
                 if current and current["projectId"] == quest["id"]:
                     result = current
                 else:
                     if current and data.get("replaceSessionId") != current["id"]:
                         raise RuleError("Another step is open. Resume it or confirm switching to a new step.")
                     session = {"id": str(uuid.uuid4()), "projectId": quest["id"], "remaining": quest["minutes"] * 60, "duration": quest["minutes"] * 60, "startedAt": None}
-                    db.execute("INSERT OR REPLACE INTO focus VALUES (1, ?)", (json.dumps(session),))
+                    self.save_session(db, user, session)
                     result = self.session_view(session)
             elif action in ("start", "pause", "reset", "cancel", "complete"):
-                session = self.session(db, data.get("sessionId"))
+                session = self.session(db, user, data.get("sessionId"))
                 status = self.session_view(session)
                 if action == "cancel":
-                    db.execute("DELETE FROM focus WHERE id=1")
+                    self.end_session(db, user)
                 elif action == "complete":
                     quest = next((p for p in state["projects"] if p["id"] == session["projectId"] and not p["done"]), None)
                     if not quest:
@@ -236,7 +292,7 @@ class Workspace:
                     next_step = text(data.get("next"), 140).strip()
                     state["wins"].append({"action": quest["next"], "project": quest["name"], "at": now * 1000})
                     quest.update(context="Finished: " + quest["next"], next=next_step, done=False, blocker="", sample=False, updatedAt=now * 1000)
-                    db.execute("DELETE FROM focus WHERE id=1")
+                    self.end_session(db, user)
                     result = {"xpAwarded": 25, "savedOnDevice": True}
                 else:
                     if action == "reset":
@@ -248,15 +304,19 @@ class Workspace:
                         if session["startedAt"] is not None:
                             session["remaining"] = max(0, session["remaining"] - max(0, now - session["startedAt"]))
                         session["startedAt"] = None
-                    db.execute("UPDATE focus SET data=? WHERE id=1", (json.dumps(session),))
+                    self.save_session(db, user, session)
                     result = self.session_view(session)
             else:
                 raise RuleError("Unknown operation.")
             state = validate(state)
-            db.execute("UPDATE workspace SET data=? WHERE id=1", (json.dumps(state),))
-            return {"state": state, "summary": presentation(state, now), "focus": self.current_focus(db), "result": result}
+            # Limits only block growth, so a downgraded account keeps every existing quest.
+            active = active_quests(state)
+            if quest_limit is not None and active > quest_limit and active > active_before:
+                raise UpgradeRequired(f"The free plan includes {quest_limit} active quests. Finish one first, or upgrade to Pro for unlimited quests.")
+            db.execute("UPDATE workspaces SET data=? WHERE user_id=?", (json.dumps(state), user))
+            return {"state": state, "summary": presentation(state, now, report), "focus": self.current_focus(db, user), "result": result}
 
-    def invalidate(self, db, project_id):
-        row = db.execute("SELECT data FROM focus WHERE id=1").fetchone()
-        if row and json.loads(row[0])["projectId"] == project_id:
-            db.execute("DELETE FROM focus WHERE id=1")
+    def invalidate(self, db, user, project_id):
+        session = self.stored_session(db, user)
+        if session and session["projectId"] == project_id:
+            self.end_session(db, user)

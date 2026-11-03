@@ -267,7 +267,7 @@ class AppTests(unittest.TestCase):
         self.post("capture", name="Keep this")
         before = self.state()
         with self.store.connection() as db:
-            db.execute("CREATE TRIGGER fail_update BEFORE UPDATE ON workspace BEGIN SELECT RAISE(ABORT, 'test failure'); END")
+            db.execute("CREATE TRIGGER fail_update BEFORE UPDATE ON workspaces BEGIN SELECT RAISE(ABORT, 'test failure'); END")
         response = self.post("save", project=before["projects"][0], ideaId=before["ideas"][0]["id"])
         self.assertEqual(response.status_code, 503)
         self.assertEqual(self.state(), before)
@@ -343,7 +343,7 @@ class AppTests(unittest.TestCase):
         identifier = self.focus()
         before = self.state()
         with self.store.connection() as db:
-            db.execute("CREATE TRIGGER fail_completion BEFORE UPDATE ON workspace BEGIN SELECT RAISE(ABORT, 'test failure'); END")
+            db.execute("CREATE TRIGGER fail_completion BEFORE UPDATE ON workspaces BEGIN SELECT RAISE(ABORT, 'test failure'); END")
         self.assertEqual(self.post("complete", sessionId=identifier, next="").status_code, 503)
         self.assertEqual(self.state(), before)
         self.assertEqual(self.store.snapshot()["focus"]["id"], identifier)
