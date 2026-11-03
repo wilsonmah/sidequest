@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SideQuest — Log in</title><meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23f15b35'/%3E%3Cpath d='M23 6 10 23h10l-3 11 14-19H21z' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="site.css"></head>
+<body>
+<main class="auth"><div class="auth-card">
+ <a class="brand" href="/"><span class="brand-mark">ϟ</span>sidequest<b>.</b></a>
+ <h1 id="auth-title">Welcome back</h1><p id="auth-intro">Log in to pick up where you left off.</p>
+ <form id="auth-form" novalidate>
+  <div id="email-field"><label for="email">Email</label><input id="email" type="email" autocomplete="email" maxlength="254" required></div>
+  <div id="password-field"><label for="password" id="password-label">Password</label><input id="password" type="password" autocomplete="current-password" minlength="10" maxlength="200" required></div>
+  <label class="check" id="terms-field" hidden><input id="terms" type="checkbox" aria-label="I agree to the terms and privacy policy"> <span>I agree to the <a href="/terms" target="_blank">terms</a> and <a href="/privacy" target="_blank">privacy policy</a>.</span></label>
+  <button class="btn btn-primary" id="auth-submit" type="submit">Log in</button>
+  <p class="form-message" id="auth-message" role="status"></p>
+ </form>
+ <div class="auth-links" id="auth-links"></div>
+</div></main>
+<script src="auth.js" defer></script>
+</body></html>

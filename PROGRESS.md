@@ -123,3 +123,12 @@ Finish reshaping SideQuest as a phone-friendly companion with a richer desktop w
 - Found and fixed an actual edge case: backup replacing a focused starter quest left its old focus session valid, allowing the replacement task to use old timer eligibility. Changed import to invalidate the session only when the starter actually changes; identical restores retain eligibility.
 - Added full lifecycle regression plus changed/identical restore session tests. All 23 Python tests and 4 front-end tests pass.
 - Restarted only verified normal SideQuest launcher to load the fix (PID 16980 at handoff); /api/health is ready. Normal service remains running on port 4173. Isolated QA server stopped after verification.
+
+## Hosted commercial edition — November 3, 2026
+- Goal set by the user: an independent paid product earning US$2,000/month. Full review, pricing math and launch plan in `REVIEW.md`; deployment steps in `DEPLOY.md`.
+- Branch `feat/hosted-commercial`. `SIDEQUEST_MODE=hosted` adds per-user workspaces, email/password accounts (throttled sign-in, reset by email, deletion), a free cap of 3 active projects, and Pro at $9/month or $72/year via Stripe Checkout, Customer Portal and signed webhooks. Local mode is unchanged and still the default; old single-user databases migrate to the `local` user automatically.
+- New public pages: landing with pricing and FAQ, sign-in/sign-up/reset, privacy and terms templates (placeholders must be filled before launch).
+- Deployment: Dockerfile + gunicorn (`wsgi.py`), Render blueprint with a persistent disk, `.env.example`.
+- 41 Python tests pass (29 existing + 12 hosted). Node front-end tests not run: Node.js is not installed on this machine.
+- Browser checked (hosted, local dev server): landing desktop and 375px phone with no horizontal overflow, sign-up → app with Pro dialog, free cap opens upgrade prompt on the 4th quest, Progress report locked for free, log out returns to landing. Local mode loads with no console errors. Stripe and SMTP not exercised live (no keys).
+- Not done yet: Stripe account and prices, domain, deployment, SMTP, legal review, backups, email verification.
