@@ -3,6 +3,13 @@
 ## Product
 A playful project workspace for resuming unfinished projects, completing small focus sessions, and tracking income ideas. The user wants it to be useful, playful, and potentially profitable.
 
+## Source of truth — November 4, 2026
+- **GitHub is the only source of truth:** https://github.com/wilsonmah/sidequest, branch `main`. The user works on GitHub only and no longer keeps a local checkout.
+- To make changes, clone `main` into a fresh working folder, edit and test there, then push to GitHub. Pull first if a copy already exists.
+- The former local checkout `C:\MY PROJECTS\sidequest` is retired. When it was retired it held no code or workspace data that wasn't already on GitHub. Older notes below that mention it are history.
+- The hosted edition is meant to deploy from GitHub `main` (see DEPLOY.md), so pushes to `main` are what go live.
+- To run the local edition on a computer, clone the repository and follow README.md.
+
 ## Current local version — October 21, 2026
 - User requested a minimal Python logic layer and explicitly chose a local Python version first.
 - Run `start.cmd`, or `.venv\Scripts\python.exe app.py`, then open http://127.0.0.1:4173/.
@@ -18,7 +25,7 @@ A playful project workspace for resuming unfinished projects, completing small f
 
 ## Last published JavaScript version (unchanged)
 - Private live app: https://sidequest-studio-wilson.wilsonmah1226179405.chatgpt.site
-- Canonical source checkout: `C:\MY PROJECTS\sidequest` (moved from the previous Linux workspace).
+- Source checkout at the time: `C:\MY PROJECTS\sidequest` (now retired; use GitHub, see “Source of truth” above).
 - Published source revision: `657c2e4edf471e7ed3307d42b3bcb1ecf9958b19`
 - Plain HTML, CSS, and JavaScript in `dist/`; no dependency installation or compilation required.
 - Sites project ID: `appgprj_6aa8c1f3241081919ba2b50f4a333486`
@@ -52,13 +59,13 @@ A playful project workspace for resuming unfinished projects, completing small f
 - Before expanding features, review the current app with the user and choose the next slice.
 - Backup restore, desktop-wide rendering, and full accessibility behavior have not had exhaustive browser testing.
 
-## Resume notes
-- Use the Windows checkout above; its `dist/` contains the app source.
+## Resume notes (static Sites edition, historical)
+- Start from GitHub `main` (see “Source of truth” above); the Windows checkout these notes refer to is retired.
 - Reuse the existing Sites project; do not create a replacement.
 - The preview server has been stopped. Start a new local preview if needed.
 - No credentials are saved in this note. Obtain a fresh Sites source-write credential when publishing changes.
 - Sites scripts disappeared from their installed path during the previous turn. If still absent, locate the current plugin before relying on its scripts. The successful static archive contained `dist/index.html`, `dist/style.css`, `dist/app.js`, and `dist/.openai/hosting.json`.
-- The top-level workspace `.git` was read-only; the canonical checkout has its own working Git repository.
+- The top-level workspace `.git` was read-only; the former Windows checkout had its own working Git repository.
 
 ## User's latest instruction
 Finish reshaping SideQuest as a phone-friendly companion with a richer desktop workspace, organized around before/during/after project work.
