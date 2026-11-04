@@ -45,10 +45,14 @@ Double-click `start.cmd` to open <http://127.0.0.1:4173/> once the service is re
 
 ## Try the hosted edition on your computer
 
+In a **new** PowerShell window, from the project directory:
+
 ```powershell
-$env:SIDEQUEST_MODE="hosted"; $env:SECRET_KEY="dev-only-secret-key-not-for-production-0123456789"; $env:PORT="4180"
+$env:SIDEQUEST_MODE="hosted"; $env:SECRET_KEY="dev-only-secret-key-not-for-production-0123456789"; $env:PORT="4180"; $env:SIDEQUEST_DB="instance\hosted-trial.sqlite3"
 .\.venv\Scripts\python.exe app.py
 ```
+
+These settings last only for that window, and `SIDEQUEST_DB` keeps the trial accounts in a separate file from your local workspace. Close the window when you're done; `start.cmd` or `app.py` run from the same window would otherwise start in hosted mode too.
 
 Open <http://localhost:4180/> for the landing page and sign up with any test email. Without Stripe settings the Pro dialog says upgrades open soon; everything else works. Production setup (Stripe, email, domain, backups) is in [DEPLOY.md](DEPLOY.md).
 

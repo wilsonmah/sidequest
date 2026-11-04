@@ -45,10 +45,14 @@ python -m venv .venv
 
 ## 在本机试用在线版
 
+在项目目录中打开一个**新的** PowerShell 窗口运行：
+
 ```powershell
-$env:SIDEQUEST_MODE="hosted"; $env:SECRET_KEY="dev-only-secret-key-not-for-production-0123456789"; $env:PORT="4180"
+$env:SIDEQUEST_MODE="hosted"; $env:SECRET_KEY="dev-only-secret-key-not-for-production-0123456789"; $env:PORT="4180"; $env:SIDEQUEST_DB="instance\hosted-trial.sqlite3"
 .\.venv\Scripts\python.exe app.py
 ```
+
+这些设置只在该窗口中有效；`SIDEQUEST_DB` 让试用账号保存在单独的文件中，不会和本地工作区混在一起。试用结束后请关闭该窗口，否则在同一窗口中运行 `start.cmd` 或 `app.py` 也会以在线版模式启动。
 
 打开 <http://localhost:4180/> 查看落地页，用任意测试邮箱注册即可。未配置 Stripe 时，Pro 弹窗会提示升级即将开放，其余功能都可使用。正式上线所需的 Stripe、邮件、域名和备份设置见 [DEPLOY.md](DEPLOY.md)。
 

@@ -41,7 +41,7 @@ Any Docker host with a persistent volume works the same way (Fly.io, Railway, a 
 ## Running hosted mode locally
 
 ```powershell
-$env:SIDEQUEST_MODE="hosted"; $env:SECRET_KEY="dev-only-secret-key-not-for-production-0123456789"; $env:PORT="4180"
+$env:SIDEQUEST_MODE="hosted"; $env:SECRET_KEY="dev-only-secret-key-not-for-production-0123456789"; $env:PORT="4180"; $env:SIDEQUEST_DB="instance\hosted-trial.sqlite3"
 .\.venv\Scripts\python.exe app.py
 ```
 
