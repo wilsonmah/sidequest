@@ -30,13 +30,19 @@ Any Docker host with a persistent volume works the same way (Fly.io, Railway, a 
 
 ## 4. Before taking real money
 
-- [ ] Replace every `[BRACKETED]` placeholder in `dist/privacy.html` and `dist/terms.html`, remove the yellow template notes, and have them reviewed for your country (and EU/UK/California if you sell there).
-- [ ] Decide your refund policy and state it in the terms.
+- [ ] Legal pages (`dist/privacy.html`, `dist/terms.html`) are written for Ontario, Canada with a 14-day refund. Before launch:
+  - Replace `support@your-domain.com` (it appears in both files) with your real support inbox.
+  - Add your legal name or registered business name after “SideQuest” in the first paragraph of each page. Stripe will ask for the same name.
+  - If you use a host or email provider other than Render, update the “Who we share it with” list.
+  - Have a lawyer or paralegal read both pages once; it costs far less than a dispute.
+- [ ] Keep the promises the terms make:
+  - **Renewal reminder:** in Stripe, **Settings → Billing → Subscriptions and emails**, turn on emails for upcoming renewals (the terms promise a reminder before yearly plans renew) and for failed payments.
+  - **Refunds:** refund requests within 14 days of a charge go in full. Issue them from the payment in the Stripe Dashboard and cancel the subscription immediately.
+  - **Backups:** the privacy policy says backups are kept for up to 30 days; set your snapshot or Litestream retention to match.
 - [ ] Test the full flow in Stripe test mode with card `4242 4242 4242 4242`: sign up → upgrade → Pro → Manage billing → cancel → back to free at period end.
 - [ ] Run `stripe listen --forward-to localhost:4173/api/billing/webhook` locally if you want to test webhooks before deploying.
 - [ ] Turn on backups: Render takes daily disk snapshots on paid plans; for point-in-time recovery, add Litestream replicating `/data/sidequest.sqlite3` to S3 or Cloudflare R2.
-- [ ] Set up a support inbox and put it in the legal pages.
-- [ ] Register for sales tax/VAT where required, or turn on Stripe Tax.
+- [ ] Sales tax: in Canada you must register for GST/HST once worldwide taxable sales pass CA$30,000 in four consecutive quarters (you can register earlier). Stripe Tax can calculate and add HST and foreign taxes at checkout; the terms already say taxes are added where required.
 
 ## Running hosted mode locally
 
