@@ -26,6 +26,23 @@ The commercial review, pricing math and launch plan are in [REVIEW.md](REVIEW.md
 - Export or import a JSON backup, copy a progress message, or share an editable step link.
 - Hosted edition only: a landing page with pricing, sign-up and sign-in, an upgrade prompt when the free limit is reached, **Manage billing** for subscribers, **Log out** and **Delete account** in the footer.
 
+## Interface
+
+- **Light and dark mode.** SideQuest follows your system setting. The moon/sun button in the header switches it, and this browser remembers your choice. The landing, sign-in and legal pages use the same setting.
+- **Command menu.** Press <kbd>Ctrl</kbd>+<kbd>K</kbd> (<kbd>⌘</kbd>+<kbd>K</kbd> on Mac), or click **Search or jump to…** in the sidebar. Type to filter, use the arrow keys to choose, and press <kbd>Enter</kbd> to run. From here you can switch pages, capture an idea, create a quest, start focusing on any active project, find a 15-minute step, switch the theme, download a backup or open Pro.
+- **Keyboard shortcuts.** <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> works everywhere. The single-key shortcuts are paused while you're typing in a field or a dialog is open:
+
+  | Key | Action |
+  | --- | --- |
+  | <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> or <kbd>/</kbd> | Open the command menu |
+  | <kbd>1</kbd> · <kbd>2</kbd> · <kbd>3</kbd> | Go to Today · Quests · Progress |
+  | <kbd>C</kbd> | Capture an idea |
+  | <kbd>N</kbd> | New quest |
+  | <kbd>D</kbd> | Switch light/dark mode |
+
+- **Focus timer ring.** The ring around the timer fills as the session runs, using the quest's 15, 30 or 60 minutes as the full circle.
+- **On phones** the pages switch with a floating tab bar at the bottom, and the focus session opens full screen.
+
 ## Run the local edition
 
 Requires Python 3.12 or newer and Flask. SQLite and the test framework are included with Python. Node.js and a front-end build are not needed.
