@@ -1,6 +1,8 @@
 'use strict';
 // Public pages: pricing toggle on the landing page; log in, sign up and password reset on auth.html.
 const $=id=>document.getElementById(id);
+// Same theme choice as the app (stored by its header toggle).
+try{const theme=localStorage.getItem('sidequest-theme');if(theme==='dark'||theme==='light')document.documentElement.dataset.theme=theme}catch{}
 
 document.querySelectorAll('[data-period]').forEach(button=>button.addEventListener('click',()=>{
  const yearly=button.dataset.period==='year';
