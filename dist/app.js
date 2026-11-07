@@ -125,6 +125,9 @@ function syncFocus(session){
 function updateTimer(){
  const remaining=focus?.remaining||0;
  $('timer').textContent=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');
+ // The ring fills as the timer runs; the quest's length is the full circle.
+ const total=(state.projects.find(p=>p.id===focus?.projectId)?.minutes||15)*60,ring=$('focus-timer');
+ if(ring.style)ring.style.setProperty('--p',focus?String(Math.min(1,Math.max(0,1-remaining/total))):'0');
  $('finish-step').disabled=timerBusy||focusDisconnected||!focus;
  $('timer-toggle').disabled=timerBusy||focusDisconnected||!focus||focus.finished;
  $('timer-reset').disabled=timerBusy||focusDisconnected||!focus;
@@ -338,6 +341,65 @@ function renderInsights(){
 }
 $('insights-body').onclick=e=>{if(e.target.closest('#insights-upgrade'))openPro()};
 initialize();
+// Theme: follows the system until the person picks one; the choice is remembered in this browser.
+const root=document.documentElement;
+const systemDark=()=>typeof matchMedia==='function'&&matchMedia('(prefers-color-scheme: dark)').matches;
+function setTheme(theme){if(!root)return;root.dataset.theme=theme;try{localStorage.setItem('sidequest-theme',theme)}catch{}}
+function toggleTheme(){setTheme((root?.dataset.theme||(systemDark()?'dark':'light'))==='dark'?'light':'dark')}
+try{const saved=localStorage.getItem('sidequest-theme');if(root&&(saved==='dark'||saved==='light'))root.dataset.theme=saved}catch{}
+$('theme-toggle').onclick=toggleTheme;
+
+// Command menu (Ctrl/⌘K) and single-key shortcuts, so everything is reachable from the keyboard.
+const isMac=typeof navigator!=='undefined'&&/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent||'');
+document.querySelectorAll('.mod-key').forEach(k=>k.textContent=isMac?'⌘ K':'Ctrl K');
+function commandList(){
+ const go=(view,label,key,icon)=>({group:'Navigate',label,key,icon,run:()=>setView(view)});
+ const items=[go('today','Go to Today','1','◷'),go('active','Go to Quests','2','▦'),go('progress','Go to Progress','3','✦'),
+  {group:'Create',label:'Capture an idea',key:'C',icon:'✳',run:()=>$('capture-idea').click()},
+  {group:'Create',label:'New quest',key:'N',icon:'＋',run:()=>openProject()},
+  {group:'Focus',label:'Find a 15-minute step',icon:'⏱',run:()=>{setView('today');if(todayBudget!==15)$('fifteen-minutes').click()}}];
+ if(focus)items.push({group:'Focus',label:'Return to current step',icon:'↺',run:()=>$('resume-session').click()});
+ state.projects.filter(p=>!p.done&&p.next.trim()).forEach(p=>items.push({group:'Focus',label:'Focus: '+p.name,detail:p.next,icon:'→',run:()=>launchFocus(p.id)}));
+ items.push({group:'Workspace',label:'Toggle dark mode',key:'D',icon:'◐',run:toggleTheme},
+  {group:'Workspace',label:'Download backup',icon:'↓',run:()=>$('export').click()},
+  {group:'Workspace',label:hosted()&&account.plan==='pro'?'Manage your plan':'Explore Pro',icon:'✦',run:()=>openPro()});
+ return items;
+}
+let commandMatches=[],commandIndex=0;
+function renderCommands(){
+ const query=$('command-input').value.trim().toLowerCase();
+ commandMatches=commandList().filter(c=>!query||(c.label+' '+(c.detail||'')).toLowerCase().includes(query));
+ commandIndex=Math.min(commandIndex,Math.max(0,commandMatches.length-1));
+ let group='';
+ $('command-list').innerHTML=commandMatches.length?commandMatches.map((c,i)=>{
+  const head=c.group!==group?`<li class="command-group" role="presentation">${escapeHTML(c.group)}</li>`:'';group=c.group;
+  return head+`<li role="presentation"><button class="command-item" role="option" id="command-${i}" data-index="${i}" aria-selected="${i===commandIndex}" tabindex="-1"><span aria-hidden="true">${c.icon}</span><span>${escapeHTML(c.label)}</span>${c.key?`<kbd>${c.key}</kbd>`:''}</button></li>`;
+ }).join(''):'<li class="command-empty" role="presentation">No matching commands.</li>';
+ $('command-input').setAttribute('aria-activedescendant',commandMatches.length?'command-'+commandIndex:'');
+ document.getElementById('command-'+commandIndex)?.scrollIntoView?.({block:'nearest'});
+}
+function openCommand(){
+ if(!ready||$('command-dialog').open)return;
+ document.querySelectorAll('dialog[open]').forEach(d=>d.close());
+ $('command-input').value='';commandIndex=0;renderCommands();$('command-dialog').showModal();$('command-input').focus();
+}
+function runCommand(index){const command=commandMatches[index];if(!command)return;$('command-dialog').close();command.run()}
+$('open-command').onclick=openCommand;
+$('command-input').oninput=()=>{commandIndex=0;renderCommands()};
+$('command-input').onkeydown=e=>{
+ if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const n=commandMatches.length;if(n){commandIndex=(commandIndex+(e.key==='ArrowDown'?1:n-1))%n;renderCommands()}}
+ if(e.key==='Enter'){e.preventDefault();runCommand(commandIndex)}
+};
+$('command-list').onclick=e=>{const b=e.target.closest('[data-index]');if(b)runCommand(Number(b.dataset.index))};
+window.addEventListener('keydown',e=>{
+ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('command-dialog').open?$('command-dialog').close():openCommand();return}
+ if(!ready||e.metaKey||e.ctrlKey||e.altKey||e.repeat)return;
+ if(e.target.closest?.('input,textarea,select,[contenteditable]')||document.querySelector('dialog[open]'))return;
+ const keys={'1':()=>setView('today'),'2':()=>setView('active'),'3':()=>setView('progress'),c:()=>$('capture-idea').click(),n:()=>openProject(),d:toggleTheme,'/':openCommand};
+ const action=keys[e.key.toLowerCase()];
+ if(action){e.preventDefault();action()}
+});
+
 if(document.modelContext?.registerTool){
  const lifecycle=new AbortController();window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});
  const register=tool=>{try{Promise.resolve(document.modelContext.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{})}catch{}};
