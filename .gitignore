@@ -13,3 +13,4 @@ sidequest-backup-*.json
 *.sqlite3-*
 *.db
 *.log
+_site/

@@ -389,6 +389,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--violet);
  .board-toolbar,.momentum-heading{flex-direction:column;align-items:flex-start}
  .heading{align-items:flex-start;flex-direction:column}
  .pro-card>span:not(.pro-icon){display:none}
+ .command-trigger kbd{display:none}
 }
 @media (max-width:650px){
  body{font-size:15px}
