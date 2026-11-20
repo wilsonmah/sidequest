@@ -2,7 +2,16 @@
 
 [English](README.en.md) | 中文
 
+**在线演示：<https://wilsonmah.github.io/sidequest/>**
+
 SideQuest 帮助你持续推进个人项目：记下想法，为项目写下一个小步骤，随时回来继续。同一套代码提供两个版本：供一人在本机使用的本地版，以及带账号和付费方案的在线版。界面为英文，数据保存在 SQLite 中。
+
+## 在线演示
+
+- **落地页：** <https://wilsonmah.github.io/sidequest/>
+- **应用：** <https://wilsonmah.github.io/sidequest/app.html> 打开即可使用，内置示例项目、想法和一周的完成记录，无需注册。
+
+演示完全在浏览器中运行：用一个小脚本代替 Python 服务端，并遵循相同的规则（推荐步骤、专注计时、XP、里程碑和免费版上限）。每位访客的操作只保存在自己的浏览器里；点击应用顶部的 **Reset demo** 可恢复示例数据。演示没有真实账号，付款功能已关闭，因此 Pro 弹窗显示 "Upgrades open soon"。每次推送到 `main`，GitHub Actions 都会自动重新构建并发布演示。
 
 ## 两个版本
 
@@ -104,5 +113,6 @@ Python 测试（`test_app.py` 覆盖共用逻辑和本地版，`test_hosted.py` 
 - `wsgi.py`、`Dockerfile`、`render.yaml`、`requirements-prod.txt`、`.env.example`：生产环境部署。
 - `dist/`：应用、落地页、登录页和法律页面（HTML、CSS 和原生 JavaScript）。
 - `tests/`：后端及前端回归测试。
+- `demo/`、`scripts/build_demo.py`、`.github/workflows/pages.yml`：GitHub Pages 静态演示。
 
-`dist/` 依赖 Python API，不能单独作为静态站点发布。
+`dist/` 依赖 Python API，不能单独作为静态站点发布；演示版通过 `demo/demo-api.js` 解决了这一点。如需在本地构建，运行 `.\.venv\Scripts\python.exe scripts\build_demo.py _site`，再用任意静态文件服务器打开 `_site` 文件夹。

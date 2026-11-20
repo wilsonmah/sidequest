@@ -2,7 +2,16 @@
 
 English | [中文](README.md)
 
+**Live demo: <https://wilsonmah.github.io/sidequest/>**
+
 SideQuest helps you make steady progress on side projects. Capture an idea, define a small next step, and pick up where you left off. It comes in two editions from the same code: a local app for one person on one computer, and a hosted product with accounts and paid plans. The interface is in English; data is stored in SQLite.
+
+## Live demo
+
+- **Landing page:** <https://wilsonmah.github.io/sidequest/>
+- **App:** <https://wilsonmah.github.io/sidequest/app.html> opens straight away with sample projects, ideas and a week of finished steps. No sign-up needed.
+
+The demo runs entirely in the browser: a small script stands in for the Python server and follows the same rules (recommendations, focus timer, XP, milestones and the free-plan limit). Each visitor's changes are saved only in their own browser; **Reset demo** at the top of the app restores the sample data. There are no real accounts and checkout is turned off, so the Pro dialog shows "Upgrades open soon". GitHub Actions rebuilds and publishes the demo on every push to `main`.
 
 ## Two editions
 
@@ -104,5 +113,6 @@ Python tests (`test_app.py` for the shared logic and local edition, `test_hosted
 - `wsgi.py`, `Dockerfile`, `render.yaml`, `requirements-prod.txt`, `.env.example`: production deployment.
 - `dist/`: app, landing, sign-in and legal pages (HTML, CSS, and vanilla JavaScript).
 - `tests/`: back-end and front-end regression tests.
+- `demo/`, `scripts/build_demo.py`, `.github/workflows/pages.yml`: the static GitHub Pages demo.
 
-`dist/` depends on the Python API and cannot be deployed alone as a static site.
+`dist/` depends on the Python API and cannot be deployed alone as a static site. The demo works around this with `demo/demo-api.js`. To build it locally, run `.\.venv\Scripts\python.exe scripts\build_demo.py _site` and serve the `_site` folder with any static file server.
